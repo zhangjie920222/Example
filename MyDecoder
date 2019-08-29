@@ -1,0 +1,74 @@
+
+import io.netty.buffer.ByteBuf;
+import io.netty.channel.ChannelHandlerContext;
+import io.netty.handler.codec.ByteToMessageDecoder;
+
+import java.util.List;
+
+
+public class MyDecoder extends ByteToMessageDecoder {
+    /**
+     * 包开始标志
+     */
+    private String start;
+    /**
+     * 包结束标志
+     */
+    private String end;
+
+    public GpsByteToMessageDecoder() {
+        this.start="[";
+        this.end="]";
+    }
+
+    public GpsByteToMessageDecoder(String start, String end) {
+        this.start = start;
+        this.end = end;
+    }
+
+    @Override
+    protected void decode(ChannelHandlerContext ctx, ByteBuf buf, List<Object> out) throws Exception {
+        final int len = buf.writerIndex();
+        final int reader = buf.readerIndex();
+        int start = -1;
+        int end = 0;
+        if (len > 0) {
+            for (int i = reader; i < len; i++) {
+                //开始标志
+                String startStr = "";
+                if (i < len - this.start.length() + 1) {
+                    byte[] startByte = new byte[this.start.length()];
+                    for (int j = 0; j < this.start.length(); j++) {
+                        startByte[j] = buf.getByte(i + j);
+                    }
+                    startStr = new String(startByte);
+                }
+                //结束标志
+                String endStr = "";
+                if (i < len - this.end.length() + 1) {
+                    byte[] endByte = new byte[this.end.length()];
+                    for (int j = 0; j < this.end.length(); j++) {
+                        endByte[j] = buf.getByte(i + j);
+                    }
+                    endStr = new String(endByte);
+                }
+                if (this.start.equals(startStr)) {
+                    start = i;
+                } else if (this.end.equals(endStr)) {
+                    end = i;
+                    if (start >= 0 && end > start) {
+                        ByteBuf byteBuf = buf.slice(start + this.start.length(), end - start - this.start.length());
+                        out.add(byteBuf.retain());
+                        start = -1;
+                    }
+                    if (end == (len - this.end.length())) {
+                        break;
+                    }
+                }
+            }
+            buf.setIndex(end, len);
+//            buf.skipBytes(end);
+        }
+
+    }
+}
